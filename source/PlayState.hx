@@ -1,6 +1,7 @@
 package;
 
 import Plant;
+import Zombies;
 import flixel.FlxState;
 import flixel.FlxSprite;
 import flixel.FlxG;
@@ -10,11 +11,14 @@ import flixel.util.FlxColor;
 class PlayState extends FlxState
 {
 	var grid:Array<Array<FlxSprite>>; // 2D array to hold the grid
-	var gridWidth:Int = 5; // Number of columns
-	var gridHeight:Int = 3; // Number of rows
+	var gridWidth:Int = 9; // Number of columns
+	var gridHeight:Int = 5; // Number of rows
 	var cellSize:Int = 80; // Size of each cell (in pixels)
+	var gridX:Int = 100; // X position of the grid
+	var gridY:Int = 100; // Y position of the grid vbvx cvb
 
 	public static var sun:Int = 50; // Currency for buying plants
+
 	public var sunText:FlxText; // Text to display the amount of sun
 
 	public var seedPackets:Array<SeedPacket>;
@@ -44,9 +48,8 @@ class PlayState extends FlxState
 			grid[i] = [];
 			for (j in 0...gridWidth)
 			{
-				// Create and position grid cells with checkered pattern
 				var color = (i + j) % 2 == 0 ? FlxColor.GREEN : FlxColor.GRAY;
-				var cell:FlxSprite = new FlxSprite(j * cellSize, i * cellSize);
+				var cell:FlxSprite = new FlxSprite(j * cellSize + gridX, i * cellSize + gridY);
 				cell.makeGraphic(cellSize, cellSize, color);
 				grid[i][j] = cell;
 				add(cell);
@@ -82,42 +85,56 @@ class PlayState extends FlxState
 			}
 		}
 
+		// Place plant on grid click
+		if (selectedPacket != null && FlxG.mouse.justReleased)
+		{
+			var mouseX:Int = FlxG.mouse.x;
+			var mouseY:Int = FlxG.mouse.y;
+
+			var col:Int = Std.int((mouseX - gridX) / cellSize);
+			var row:Int = Std.int((mouseY - gridY) / cellSize);
+
+			if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth && grid[row][col] == null)
+			{
+				// Place the plant
+				placePlant(row, col, selectedPacket.plantClass);
+				sun -= Type.createInstance(selectedPacket.plantClass, [0, 0]).cost;
+
+				selectedPacket.cooldown = 5; // Reset cooldown (example value)
+				selectedPacket = null; // Deselect after placing
+			}
+		}
+
+		// Handle zombie spawning
+		spawnZombie();
+
 		// Debug: Add sun with the PLUS key
-		if (FlxG.keys.justPressed.PLUS) {
+		if (FlxG.keys.justPressed.PLUS)
+		{
 			sun += 50;
 		}
 
-		// Handle dragging the plant sprite over the grid
-		if (selectedPacket != null)
+		// Update seed packet cooldowns
+		for (packet in seedPackets)
 		{
-			selectedPacket.sprite.setPosition(FlxG.mouse.x - selectedPacket.sprite.width / 2, FlxG.mouse.y - selectedPacket.sprite.height / 2);
-
-			// If the player releases the mouse, attempt to place the plant
-			if (FlxG.mouse.justReleased)
+			if (packet.cooldown > 0)
 			{
-				var mouseX:Int = FlxG.mouse.x;
-				var mouseY:Int = FlxG.mouse.y;
-
-				var col:Int = Std.int(mouseX / cellSize);
-				var row:Int = Std.int(mouseY / cellSize);
-
-				if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth && grid[row][col] == null)
-				{
-					// Place the plant
-					placePlant(row, col, selectedPacket.plantClass);
-					sun -= Type.createInstance(selectedPacket.plantClass, [0, 0]).cost;
-
-					selectedPacket.cooldown = 5; // Reset cooldown (example value)
-					selectedPacket = null; // Deselect after placing
-				}
+				packet.cooldown -= elapsed;
+				packet.sprite.color = FlxColor.GRAY;
+				packet.sprite.scale.y = 1 - packet.cooldown / 5;
+			}
+			else
+			{
+				packet.sprite.color = FlxColor.WHITE;
+				packet.sprite.scale.y = 1;
 			}
 		}
 	}
 
 	function placePlant(row:Int, col:Int, plantClass:Class<Plant>):Void
 	{
-		var x:Float = col * cellSize;
-		var y:Float = row * cellSize;
+		var x:Float = col * cellSize + gridX;
+		var y:Float = row * cellSize + gridY;
 
 		var plant:Plant = Type.createInstance(plantClass, [x, y]);
 		add(plant);
@@ -131,5 +148,17 @@ class PlayState extends FlxState
 		var sprite:FlxSprite = new FlxSprite();
 		sprite.loadGraphic(imagePath);
 		return sprite;
+	}
+
+	function spawnZombie():Void
+	{
+		if (FlxG.keys.justPressed.ONE)
+		{
+			var i = Std.random(gridHeight) + 1;
+			var row:Int = i - 1;
+			var zombie:Zombies.Browncoat = new Browncoat(FlxG.width - 100, gridY + row * cellSize);
+			add(zombie);
+			trace("Zombie spawned in row " + row);
+		}
 	}
 }
